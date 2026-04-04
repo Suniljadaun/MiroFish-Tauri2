@@ -43,7 +43,7 @@ jobs:
           # Tauri sidecar naming convention: <name>-<target-triple>
           TRIPLE=$(rustc -vV | grep host | cut -d' ' -f2)
           mv ../../mirofish-tauri/src-tauri/binaries/mirofish-server \
-             ../mirofish-tauri/src-tauri/binaries/mirofish-server-${TRIPLE}
+             ../../mirofish-tauri/src-tauri/binaries/mirofish-server-${TRIPLE}
 
           echo "Sidecar built: mirofish-server-${TRIPLE}"
           ls -lh ../mirofish-tauri/src-tauri/binaries/
