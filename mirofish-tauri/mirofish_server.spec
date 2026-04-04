@@ -4,12 +4,12 @@ import os
 block_cipher = None
 
 a = Analysis(
-    ['../../MiroFish/backend/run.py'],
-    pathex=['../../MiroFish/backend'],
+    ['../MiroFish/backend/run.py'],
+    pathex=['../MiroFish/backend'],
     binaries=[],
     datas=[
-        ('../../MiroFish/locales', 'locales'),
-        ('../../MiroFish/static', 'static'),
+        ('../MiroFish/locales', 'locales'),
+        ('../MiroFish/static', 'static'),
     ],
     hiddenimports=[
         'flask', 'flask_cors', 'werkzeug', 'werkzeug.serving', 'werkzeug.routing',
