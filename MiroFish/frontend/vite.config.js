@@ -11,6 +11,27 @@ export default defineConfig({
       '@locales': path.resolve(__dirname, '../locales')
     }
   },
+  build: {
+    rollupOptions: {
+      // Tauri packages are provided by the Tauri runtime, not bundled by Vite
+      external: [
+        '@tauri-apps/api',
+        '@tauri-apps/api/core',
+        '@tauri-apps/api/event',
+        '@tauri-apps/plugin-shell',
+        '@tauri-apps/plugin-store',
+        '@tauri-apps/plugin-fs'
+      ]
+    }
+  },
+  optimizeDeps: {
+    exclude: [
+      '@tauri-apps/api',
+      '@tauri-apps/plugin-shell',
+      '@tauri-apps/plugin-store',
+      '@tauri-apps/plugin-fs'
+    ]
+  },
   server: {
     port: 3000,
     open: true,

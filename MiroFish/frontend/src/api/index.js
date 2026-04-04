@@ -1,9 +1,30 @@
 import axios from 'axios'
 import i18n from '../i18n'
+import { isTauri, isBackendReady, getBackendPort } from './tauriBackend'
+
+// ── Base URL resolution ──────────────────────────────────────────
+// In Tauri mode the port comes from the sidecar state.
+// In browser dev mode, VITE_API_BASE_URL or localhost:5001.
+let _resolvedBaseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001'
+
+async function resolveBaseURL () {
+  if (isTauri()) {
+    try {
+      const port = await getBackendPort()
+      _resolvedBaseURL = `http://localhost:${port}`
+    } catch {
+      // fallback
+    }
+  }
+  return _resolvedBaseURL
+}
+
+// Eagerly resolve on import (non-blocking)
+resolveBaseURL()
 
 // 创建axios实例
 const service = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001',
+  baseURL: _resolvedBaseURL,
   timeout: 300000, // 5分钟超时（本体生成可能需要较长时间）
   headers: {
     'Content-Type': 'application/json'
@@ -12,8 +33,27 @@ const service = axios.create({
 
 // 请求拦截器
 service.interceptors.request.use(
-  config => {
+  async config => {
     config.headers['Accept-Language'] = i18n.global.locale.value
+
+    // In Tauri mode, wait for backend and use resolved base URL
+    if (isTauri()) {
+      // Update baseURL in case it was resolved after axios instance creation
+      config.baseURL = _resolvedBaseURL
+
+      // Wait for backend readiness (up to 60s)
+      if (!isBackendReady()) {
+        let waited = 0
+        while (!isBackendReady() && waited < 60000) {
+          await new Promise(r => setTimeout(r, 500))
+          waited += 500
+        }
+        if (!isBackendReady()) {
+          return Promise.reject(new Error('Backend sidecar is not ready'))
+        }
+      }
+    }
+
     return config
   },
   error => {
