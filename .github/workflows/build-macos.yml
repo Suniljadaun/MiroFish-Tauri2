@@ -35,14 +35,14 @@ jobs:
       - name: Build Python sidecar (PyInstaller)
         working-directory: MiroFish/backend
         run: |
-          pyinstaller ../mirofish-tauri/mirofish_server.spec \
-            --distpath ../mirofish-tauri/src-tauri/binaries \
+          pyinstaller ../../mirofish-tauri/mirofish_server.spec \
+            --distpath ../../mirofish-tauri/src-tauri/binaries \
             --workpath /tmp/pyinstaller-build \
             --noconfirm
 
           # Tauri sidecar naming convention: <name>-<target-triple>
           TRIPLE=$(rustc -vV | grep host | cut -d' ' -f2)
-          mv ../mirofish-tauri/src-tauri/binaries/mirofish-server \
+          mv ../../mirofish-tauri/src-tauri/binaries/mirofish-server \
              ../mirofish-tauri/src-tauri/binaries/mirofish-server-${TRIPLE}
 
           echo "Sidecar built: mirofish-server-${TRIPLE}"
