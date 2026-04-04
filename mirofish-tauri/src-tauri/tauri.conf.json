@@ -47,9 +47,9 @@
       "signingIdentity": null,
       "minimumSystemVersion": "10.15"
     },
-    "resources": {
-      "sidecar-binaries": ["binaries/mirofish-server"]
-    }
+    "externalBin": [
+      "binaries/mirofish-server"
+    ]
   },
   "plugins": {
     "shell": {
