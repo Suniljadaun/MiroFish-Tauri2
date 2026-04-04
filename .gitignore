@@ -12,3 +12,5 @@ mirofish-tauri/src-tauri/target/
 mirofish-tauri/src-tauri/binaries/mirofish-server*
 !mirofish-tauri/src-tauri/binaries/.gitkeep
 working/
+working/
+zips/
