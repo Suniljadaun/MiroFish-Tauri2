@@ -46,7 +46,7 @@ jobs:
              ../../mirofish-tauri/src-tauri/binaries/mirofish-server-${TRIPLE}
 
           echo "Sidecar built: mirofish-server-${TRIPLE}"
-          ls -lh ../mirofish-tauri/src-tauri/binaries/
+          ls -lh ../../mirofish-tauri/src-tauri/binaries/
 
       # ── 5. Setup Node.js ──────────────────────────────────────────────────
       - name: Set up Node.js
