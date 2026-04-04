@@ -1,0 +1,23 @@
+# Rust
+src-tauri/target/
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# Build outputs
+frontend/dist/
+
+# PyInstaller sidecar binary (built by CI)
+src-tauri/binaries/mirofish-server*
+!src-tauri/binaries/.gitkeep
+
+# Env files
+.env
+.env.local
+
+# macOS
+.DS_Store
+
+# Tauri
+src-tauri/gen/

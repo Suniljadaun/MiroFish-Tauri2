@@ -1,0 +1,110 @@
+name: Build MiroFish macOS App
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    name: Build macOS .app
+    runs-on: macos-latest
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Setup Python 3.11 ─────────────────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ── 3. Install Python backend deps + PyInstaller ──────────────────────
+      - name: Install Python dependencies
+        working-directory: MiroFish/backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      # ── 4. Build Python sidecar with PyInstaller ──────────────────────────
+      - name: Build Python sidecar (PyInstaller)
+        working-directory: MiroFish/backend
+        run: |
+          pyinstaller ../mirofish-tauri/mirofish_server.spec \
+            --distpath ../mirofish-tauri/src-tauri/binaries \
+            --workpath /tmp/pyinstaller-build \
+            --noconfirm
+
+          # Tauri sidecar naming convention: <name>-<target-triple>
+          TRIPLE=$(rustc -vV | grep host | cut -d' ' -f2)
+          mv ../mirofish-tauri/src-tauri/binaries/mirofish-server \
+             ../mirofish-tauri/src-tauri/binaries/mirofish-server-${TRIPLE}
+
+          echo "Sidecar built: mirofish-server-${TRIPLE}"
+          ls -lh ../mirofish-tauri/src-tauri/binaries/
+
+      # ── 5. Setup Node.js ──────────────────────────────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: MiroFish/frontend/package-lock.json
+
+      # ── 6. Install frontend deps ──────────────────────────────────────────
+      - name: Install frontend dependencies
+        working-directory: MiroFish/frontend
+        run: npm ci
+
+      # ── 7. Build Vue frontend ─────────────────────────────────────────────
+      - name: Build Vue frontend
+        working-directory: MiroFish/frontend
+        run: npm run build
+
+      # ── 8. Setup Rust ─────────────────────────────────────────────────────
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./mirofish-tauri/src-tauri -> target"
+
+      # ── 9. Build Tauri app ────────────────────────────────────────────────
+      - name: Build Tauri app
+        working-directory: mirofish-tauri
+        run: |
+          npm install
+          npm run tauri build -- --bundles dmg,app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ""
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+
+      # ── 10. Upload .app and .dmg as artifacts ─────────────────────────────
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiroFish-macOS
+          path: |
+            mirofish-tauri/src-tauri/target/release/bundle/dmg/*.dmg
+            mirofish-tauri/src-tauri/target/release/bundle/macos/*.app
+          retention-days: 14
+
+      # ── 11. Create GitHub Release on tag push ─────────────────────────────
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            mirofish-tauri/src-tauri/target/release/bundle/dmg/*.dmg
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
