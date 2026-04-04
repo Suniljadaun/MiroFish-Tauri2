@@ -1,1 +1,14 @@
 *.zip
+*.tar.gz
+.env
+.env.local
+__pycache__/
+*.pyc
+node_modules/
+.DS_Store
+MiroFish/backend/.venv/
+MiroFish/backend/uploads/
+mirofish-tauri/src-tauri/target/
+mirofish-tauri/src-tauri/binaries/mirofish-server*
+!mirofish-tauri/src-tauri/binaries/.gitkeep
+working/
