@@ -4,11 +4,19 @@ LLM客户端封装
 """
 
 import json
+import logging
 import re
+import time
 from typing import Optional, Dict, Any, List
 from openai import OpenAI
 
 from ..config import Config
+
+logger = logging.getLogger(__name__)
+
+# Maximum retries for rate-limit errors
+_MAX_RETRIES = 5
+_RETRY_WAIT_SECONDS = 60  # Groq free-tier TPM resets every minute
 
 
 class LLMClient:
@@ -40,7 +48,7 @@ class LLMClient:
         response_format: Optional[Dict] = None
     ) -> str:
         """
-        发送聊天请求
+        发送聊天请求（带自动速率限制重试）
         
         Args:
             messages: 消息列表
@@ -61,11 +69,30 @@ class LLMClient:
         if response_format:
             kwargs["response_format"] = response_format
         
-        response = self.client.chat.completions.create(**kwargs)
-        content = response.choices[0].message.content
-        # 部分模型（如MiniMax M2.5）会在content中包含<think>思考内容，需要移除
-        content = re.sub(r'<think>[\s\S]*?</think>', '', content).strip()
-        return content
+        last_error = None
+        for attempt in range(_MAX_RETRIES):
+            try:
+                response = self.client.chat.completions.create(**kwargs)
+                content = response.choices[0].message.content
+                # 部分模型（如MiniMax M2.5）会在content中包含<think>思考内容，需要移除
+                content = re.sub(r'<think>[\s\S]*?</think>', '', content).strip()
+                return content
+            except Exception as e:
+                error_str = str(e)
+                # Catch rate-limit errors (HTTP 413 / 429 / "rate_limit_exceeded")
+                if any(code in error_str for code in ('413', '429', 'rate_limit', 'tokens')):
+                    last_error = e
+                    wait = _RETRY_WAIT_SECONDS * (attempt + 1)
+                    logger.warning(
+                        f"Rate limit hit (attempt {attempt + 1}/{_MAX_RETRIES}). "
+                        f"Waiting {wait}s before retry..."
+                    )
+                    time.sleep(wait)
+                else:
+                    raise  # Non-rate-limit error, propagate immediately
+        
+        # All retries exhausted
+        raise last_error
     
     def chat_json(
         self,

@@ -2,9 +2,26 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
 
+// Stub plugin: resolves @tauri-apps/* to empty modules during dev
+// (these packages are only available inside the Tauri webview shell)
+function tauriDevStub() {
+  return {
+    name: 'tauri-dev-stub',
+    enforce: 'pre',
+    resolveId(id) {
+      if (id.startsWith('@tauri-apps/')) return `\0tauri-stub:${id}`
+    },
+    load(id) {
+      if (id.startsWith('\0tauri-stub:')) {
+        return 'export default {}; export const load = () => Promise.resolve({}); export const invoke = () => Promise.resolve(); export const Command = class {};'
+      }
+    }
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue(), tauriDevStub()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
