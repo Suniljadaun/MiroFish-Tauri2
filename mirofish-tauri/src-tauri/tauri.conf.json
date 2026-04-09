@@ -52,18 +52,6 @@
     ]
   },
   "plugins": {
-    "shell": {
-      "all": true,
-      "open": true,
-      "sidecar": true,
-      "scope": [
-        {
-          "name": "binaries/mirofish-server",
-          "sidecar": true,
-          "args": true
-        }
-      ]
-    },
     "store": {
       "autoSave": 500
     }

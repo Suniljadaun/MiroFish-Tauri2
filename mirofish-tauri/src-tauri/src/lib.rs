@@ -39,7 +39,7 @@ async fn start_backend(
 
     let sidecar_cmd = app
         .shell()
-        .sidecar("binaries/mirofish-server")
+        .sidecar("mirofish-server")
         .map_err(|e| format!("Sidecar not found: {e}"))?
         .env("LLM_API_KEY", &llm_api_key)
         .env("LLM_BASE_URL", &llm_base_url)
