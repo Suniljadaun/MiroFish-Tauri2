@@ -1,3 +1,7 @@
+import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import patch_camel_schema
 """
 OASIS 双平台并行模拟预设脚本
 同时运行Twitter和Reddit模拟，读取相同的配置文件

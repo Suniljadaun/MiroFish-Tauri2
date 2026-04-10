@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Maximum retries for rate-limit errors
 _MAX_RETRIES = 5
-_RETRY_WAIT_SECONDS = 60  # Groq free-tier TPM resets every minute
+_RETRY_WAIT_SECONDS = 15  # Groq free-tier TPM resets quickly
 
 
 class LLMClient:
