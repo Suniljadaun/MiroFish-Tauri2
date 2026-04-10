@@ -49,8 +49,8 @@ export async function clearConfig() {
 }
 
 export const DEFAULT_CONFIG = {
-  llmApiKey: 'AIzaSyAZX7cNjMGp4H4rfujzFVH1oQugJkckQeA',
-  llmBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-  llmModelName: 'gemini-2.0-flash',
+  llmApiKey: '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',
+  llmBaseUrl: 'https://openrouter.ai/api/v1',
+  llmModelName: 'google/gemini-2.0-flash-001',
   zepApiKey: 'z_1dWlkIjoiOTczM2Y2YWMtMGM5My00YTBlLTg2OTMtMDJmMjY0ZGJiMDE5In0.jcXWzZw8CJV6jgshjt_Dp4chhqSicHCdHObdU-w5BdPCJrWMrRcLJOBpXKX4uBJrQizyHOcXYrbH9XjRQzjQnA',
 }
