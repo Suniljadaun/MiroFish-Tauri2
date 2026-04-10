@@ -15,11 +15,11 @@ jobs:
     steps:
       # ── 1. Checkout ──────────────────────────────────────────────────────
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # ── 2. Setup Python 3.11 ─────────────────────────────────────────────
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -50,7 +50,7 @@ jobs:
 
       # ── 5. Setup Node.js ──────────────────────────────────────────────────
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "20"
           cache: "npm"
@@ -89,7 +89,7 @@ jobs:
 
       # ── 10. Upload .app and .dmg as artifacts ─────────────────────────────
       - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: MiroFish-macOS
           path: |
