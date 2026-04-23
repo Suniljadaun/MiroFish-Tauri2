@@ -170,10 +170,15 @@ class InsightForgeResult:
     
     def to_text(self) -> str:
         """转换为详细的文本格式，供LLM理解"""
+        # Cap facts/entities/chains to avoid exceeding LLM context limits (Groq: 12K TPM)
+        MAX_FACTS = 10
+        MAX_ENTITIES = 8
+        MAX_CHAINS = 10
+
         text_parts = [
             f"## 未来预测深度分析",
             f"分析问题: {self.query}",
-            f"预测场景: {self.simulation_requirement}",
+            f"预测场景: {self.simulation_requirement[:200]}",
             f"\n### 预测数据统计",
             f"- 相关预测事实: {self.total_facts}条",
             f"- 涉及实体: {self.total_entities}个",
@@ -186,26 +191,29 @@ class InsightForgeResult:
             for i, sq in enumerate(self.sub_queries, 1):
                 text_parts.append(f"{i}. {sq}")
         
-        # 语义搜索结果
-        if self.semantic_facts:
-            text_parts.append(f"\n### 【关键事实】(请在报告中引用这些原文)")
-            for i, fact in enumerate(self.semantic_facts, 1):
-                text_parts.append(f"{i}. \"{fact}\"")
+        # 语义搜索结果 (capped)
+        facts_to_show = self.semantic_facts[:MAX_FACTS]
+        if facts_to_show:
+            text_parts.append(f"\n### 【关键事实】(请在报告中引用这些原文，共{len(self.semantic_facts)}条，展示前{len(facts_to_show)}条)")
+            for i, fact in enumerate(facts_to_show, 1):
+                text_parts.append(f"{i}. \"{fact[:300]}\"")  # Also cap individual fact length
         
-        # 实体洞察
-        if self.entity_insights:
-            text_parts.append(f"\n### 【核心实体】")
-            for entity in self.entity_insights:
+        # 实体洞察 (capped)
+        entities_to_show = self.entity_insights[:MAX_ENTITIES]
+        if entities_to_show:
+            text_parts.append(f"\n### 【核心实体】(共{len(self.entity_insights)}个，展示前{len(entities_to_show)}个)")
+            for entity in entities_to_show:
                 text_parts.append(f"- **{entity.get('name', '未知')}** ({entity.get('type', '实体')})")
                 if entity.get('summary'):
-                    text_parts.append(f"  摘要: \"{entity.get('summary')}\"")
+                    text_parts.append(f"  摘要: \"{entity.get('summary', '')[:200]}\"")
                 if entity.get('related_facts'):
                     text_parts.append(f"  相关事实: {len(entity.get('related_facts', []))}条")
         
-        # 关系链
-        if self.relationship_chains:
-            text_parts.append(f"\n### 【关系链】")
-            for chain in self.relationship_chains:
+        # 关系链 (capped)
+        chains_to_show = self.relationship_chains[:MAX_CHAINS]
+        if chains_to_show:
+            text_parts.append(f"\n### 【关系链】(共{len(self.relationship_chains)}条，展示前{len(chains_to_show)}条)")
+            for chain in chains_to_show:
                 text_parts.append(f"- {chain}")
         
         return "\n".join(text_parts)
@@ -248,7 +256,12 @@ class PanoramaResult:
         }
     
     def to_text(self) -> str:
-        """转换为文本格式（完整版本，不截断）"""
+        """转换为文本格式（限制大小以适应LLM上下文窗口）"""
+        # Cap to avoid exceeding Groq's 12K TPM limit
+        MAX_ACTIVE = 15
+        MAX_HISTORICAL = 5
+        MAX_NODES = 10
+
         text_parts = [
             f"## 广度搜索结果（未来全景视图）",
             f"查询: {self.query}",
@@ -259,22 +272,25 @@ class PanoramaResult:
             f"- 历史/过期事实: {self.historical_count}条"
         ]
         
-        # 当前有效的事实（完整输出，不截断）
-        if self.active_facts:
-            text_parts.append(f"\n### 【当前有效事实】(模拟结果原文)")
-            for i, fact in enumerate(self.active_facts, 1):
-                text_parts.append(f"{i}. \"{fact}\"")
+        # 当前有效的事实 (capped)
+        active_to_show = self.active_facts[:MAX_ACTIVE]
+        if active_to_show:
+            text_parts.append(f"\n### 【当前有效事实】(共{self.active_count}条，展示前{len(active_to_show)}条)")
+            for i, fact in enumerate(active_to_show, 1):
+                text_parts.append(f"{i}. \"{fact[:250]}\"")
         
-        # 历史/过期事实（完整输出，不截断）
-        if self.historical_facts:
-            text_parts.append(f"\n### 【历史/过期事实】(演变过程记录)")
-            for i, fact in enumerate(self.historical_facts, 1):
-                text_parts.append(f"{i}. \"{fact}\"")
+        # 历史/过期事实 (capped)
+        historical_to_show = self.historical_facts[:MAX_HISTORICAL]
+        if historical_to_show:
+            text_parts.append(f"\n### 【历史/过期事实】(共{self.historical_count}条，展示前{len(historical_to_show)}条)")
+            for i, fact in enumerate(historical_to_show, 1):
+                text_parts.append(f"{i}. \"{fact[:250]}\"")
         
-        # 关键实体（完整输出，不截断）
-        if self.all_nodes:
-            text_parts.append(f"\n### 【涉及实体】")
-            for node in self.all_nodes:
+        # 关键实体 (capped)
+        nodes_to_show = self.all_nodes[:MAX_NODES]
+        if nodes_to_show:
+            text_parts.append(f"\n### 【涉及实体】(共{self.total_nodes}个，展示前{len(nodes_to_show)}个)")
+            for node in nodes_to_show:
                 entity_type = next((l for l in node.labels if l not in ["Entity", "Node"]), "实体")
                 text_parts.append(f"- **{node.name}** ({entity_type})")
         
@@ -418,9 +434,9 @@ class ZepToolsService:
     - get_entity_summary - 获取实体的关系摘要
     """
     
-    # 重试配置
-    MAX_RETRIES = 3
-    RETRY_DELAY = 2.0
+    # 重试配置 - generous for free plan rate limits
+    MAX_RETRIES = 15
+    RETRY_DELAY = 10.0
     
     def __init__(self, api_key: Optional[str] = None, llm_client: Optional[LLMClient] = None):
         self.api_key = api_key or Config.ZEP_API_KEY
@@ -439,23 +455,58 @@ class ZepToolsService:
             self._llm_client = LLMClient()
         return self._llm_client
     
+    def _parse_zep_retry_delay(self, error_str: str) -> Optional[int]:
+        """Parse retry delay from Zep error response."""
+        import re
+        # Look for retry-after header value
+        match = re.search(r"retry-after['\"]?\s*[:=]\s*['\"]?(\d+)", error_str, re.IGNORECASE)
+        if match:
+            return int(match.group(1)) + 5  # Add 5s buffer
+        # Look for "Rate limit" pattern
+        if '429' in error_str or 'rate limit' in error_str.lower():
+            return 60  # Default 60s for rate limits
+        return None
+    
     def _call_with_retry(self, func, operation_name: str, max_retries: int = None):
-        """带重试机制的API调用"""
+        """带重试机制的API调用（支持Zep免费计划速率限制）"""
         max_retries = max_retries or self.MAX_RETRIES
         last_exception = None
         delay = self.RETRY_DELAY
+        MAX_DELAY = 60  # Cap delay at 60s to avoid 5+ minute waits
+        
+        from ..utils.zep_paging import _zep_api_lock
         
         for attempt in range(max_retries):
             try:
-                return func()
+                with _zep_api_lock:
+                    result = func()
+                time.sleep(2)  # Small delay between successful calls
+                return result
             except Exception as e:
                 last_exception = e
+                error_str = str(e)
+                
                 if attempt < max_retries - 1:
-                    logger.warning(
-                        t("console.zepRetryAttempt", operation=operation_name, attempt=attempt + 1, error=str(e)[:100], delay=f"{delay:.1f}")
-                    )
-                    time.sleep(delay)
-                    delay *= 2
+                    # Check if it's a rate limit error (be aggressive about detection)
+                    is_rate_limit = any(code in error_str.lower() for code in ('429', 'rate limit', 'rate_limit', 'quota', 'too many'))
+                    
+                    # Also check for retry-after header in error string
+                    parsed_delay = self._parse_zep_retry_delay(error_str)
+                    
+                    if is_rate_limit or parsed_delay:
+                        wait = parsed_delay if parsed_delay else min(delay, MAX_DELAY)
+                        logger.warning(
+                            f"Zep rate limit hit (attempt {attempt + 1}/{max_retries}). "
+                            f"Waiting {wait}s before retry... [{operation_name}]"
+                        )
+                        time.sleep(wait)
+                    else:
+                        wait = min(delay, MAX_DELAY)
+                        logger.warning(
+                            f"Zep {operation_name} attempt {attempt + 1} failed: {error_str[:200]}, retrying in {wait:.1f}s..."
+                        )
+                        time.sleep(wait)
+                        delay = min(delay * 2, MAX_DELAY)  # Cap exponential growth
                 else:
                     logger.error(t("console.zepAllRetriesFailed", operation=operation_name, retries=max_retries, error=str(e)))
         
@@ -495,7 +546,8 @@ class ZepToolsService:
                     scope=scope,
                     reranker="cross_encoder"
                 ),
-                operation_name=t("console.graphSearchOp", graphId=graph_id)
+                operation_name=t("console.graphSearchOp", graphId=graph_id),
+                max_retries=3  # Fail fast and fall back to local search
             )
             
             facts = []
@@ -852,20 +904,48 @@ class ZepToolsService:
             "total_relations": len(related_edges)
         }
     
+    # In-memory cache for graph nodes/edges to avoid repeated Zep API calls
+    _nodes_cache: Dict[str, Any] = {}
+    _edges_cache: Dict[str, Any] = {}
+    _cache_timestamp: Dict[str, float] = {}
+    _CACHE_TTL = 600  # 10 minutes
+    
+    def _get_cached_nodes(self, graph_id: str):
+        """Get nodes from cache or fetch from Zep (cached for 10 min)."""
+        import time as _time
+        now = _time.time()
+        cache_key = f"nodes_{graph_id}"
+        if cache_key in self._cache_timestamp and (now - self._cache_timestamp[cache_key]) < self._CACHE_TTL:
+            logger.info(f"Using cached nodes for {graph_id} ({len(self._nodes_cache[graph_id])} nodes)")
+            return self._nodes_cache[graph_id]
+        
+        nodes = self.get_all_nodes(graph_id)
+        self._nodes_cache[graph_id] = nodes
+        self._cache_timestamp[cache_key] = now
+        return nodes
+    
+    def _get_cached_edges(self, graph_id: str):
+        """Get edges from cache or fetch from Zep (cached for 10 min)."""
+        import time as _time
+        now = _time.time()
+        cache_key = f"edges_{graph_id}"
+        if cache_key in self._cache_timestamp and (now - self._cache_timestamp[cache_key]) < self._CACHE_TTL:
+            logger.info(f"Using cached edges for {graph_id} ({len(self._edges_cache[graph_id])} edges)")
+            return self._edges_cache[graph_id]
+        
+        edges = self.get_all_edges(graph_id)
+        self._edges_cache[graph_id] = edges
+        self._cache_timestamp[cache_key] = now
+        return edges
+
     def get_graph_statistics(self, graph_id: str) -> Dict[str, Any]:
         """
-        获取图谱的统计信息
-        
-        Args:
-            graph_id: 图谱ID
-            
-        Returns:
-            统计信息
+        获取图谱的统计信息 (uses cache to avoid repeated Zep calls)
         """
         logger.info(t("console.fetchingGraphStats", graphId=graph_id))
         
-        nodes = self.get_all_nodes(graph_id)
-        edges = self.get_all_edges(graph_id)
+        nodes = self._get_cached_nodes(graph_id)
+        edges = self._get_cached_edges(graph_id)
         
         # 统计实体类型分布
         entity_types = {}
@@ -894,32 +974,22 @@ class ZepToolsService:
         limit: int = 30
     ) -> Dict[str, Any]:
         """
-        获取模拟相关的上下文信息
-        
-        综合搜索与模拟需求相关的所有信息
-        
-        Args:
-            graph_id: 图谱ID
-            simulation_requirement: 模拟需求描述
-            limit: 每类信息的数量限制
-            
-        Returns:
-            模拟上下文信息
+        获取模拟相关的上下文信息 (optimized: reuses cached nodes/edges)
         """
         logger.info(t("console.fetchingSimContext", requirement=simulation_requirement[:50]))
         
-        # 搜索与模拟需求相关的信息
+        # 搜索与模拟需求相关的信息 (truncate to 380 chars — Zep max is 400)
         search_result = self.search_graph(
             graph_id=graph_id,
-            query=simulation_requirement,
+            query=simulation_requirement[:380],
             limit=limit
         )
         
-        # 获取图谱统计
+        # 获取图谱统计 (uses cache internally)
         stats = self.get_graph_statistics(graph_id)
         
-        # 获取所有实体节点
-        all_nodes = self.get_all_nodes(graph_id)
+        # Reuse cached nodes instead of calling get_all_nodes again
+        all_nodes = self._get_cached_nodes(graph_id)
         
         # 筛选有实际类型的实体（非纯Entity节点）
         entities = []
@@ -936,7 +1006,7 @@ class ZepToolsService:
             "simulation_requirement": simulation_requirement,
             "related_facts": search_result.facts,
             "graph_statistics": stats,
-            "entities": entities[:limit],  # 限制数量
+            "entities": entities[:limit],
             "total_entities": len(entities)
         }
     
@@ -948,7 +1018,7 @@ class ZepToolsService:
         query: str,
         simulation_requirement: str,
         report_context: str = "",
-        max_sub_queries: int = 5
+        max_sub_queries: int = 3  # Reduced from 5 to limit Zep API calls on free tier
     ) -> InsightForgeResult:
         """
         【InsightForge - 深度洞察检索】

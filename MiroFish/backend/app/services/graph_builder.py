@@ -334,8 +334,8 @@ class GraphBuilderService:
                         if ep_uuid:
                             episode_uuids.append(ep_uuid)
                 
-                # 避免请求过快
-                time.sleep(1)
+                # 避免请求过快 — Zep free tier: 5 RPM → wait 13s between batches
+                time.sleep(13)
                 
             except Exception as e:
                 if progress_callback:

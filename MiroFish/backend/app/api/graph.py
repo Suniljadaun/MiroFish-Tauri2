@@ -566,11 +566,18 @@ def list_tasks():
 
 # ============== 图谱数据接口 ==============
 
+# In-memory cache for graph data to avoid flooding Zep API
+_graph_data_cache = {}  # {graph_id: {"data": ..., "timestamp": ...}}
+_GRAPH_CACHE_TTL = 300  # 5 minutes
+
 @graph_bp.route('/data/<graph_id>', methods=['GET'])
 def get_graph_data(graph_id: str):
     """
     获取图谱数据（节点和边）
+    Uses in-memory cache (5 min TTL) to avoid hitting Zep rate limits.
     """
+    import time as _time
+    
     try:
         if not Config.ZEP_API_KEY:
             return jsonify({
@@ -578,8 +585,24 @@ def get_graph_data(graph_id: str):
                 "error": t('api.zepApiKeyMissing')
             }), 500
         
+        # Check cache first
+        now = _time.time()
+        cached = _graph_data_cache.get(graph_id)
+        if cached and (now - cached["timestamp"]) < _GRAPH_CACHE_TTL:
+            return jsonify({
+                "success": True,
+                "data": cached["data"]
+            })
+        
+        # Cache miss or expired — fetch from Zep
         builder = GraphBuilderService(api_key=Config.ZEP_API_KEY)
         graph_data = builder.get_graph_data(graph_id)
+        
+        # Store in cache
+        _graph_data_cache[graph_id] = {
+            "data": graph_data,
+            "timestamp": now
+        }
         
         return jsonify({
             "success": True,

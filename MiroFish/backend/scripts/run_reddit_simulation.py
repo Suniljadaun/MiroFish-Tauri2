@@ -14,13 +14,6 @@ OASIS Reddit模拟预设脚本
 """
 
 import argparse
-
-# --- MONKEY PATCH CAMEL-AI SCHEMA PARSER ---
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import patch_camel_schema
-# -------------------------------------------
 import asyncio
 import json
 import logging

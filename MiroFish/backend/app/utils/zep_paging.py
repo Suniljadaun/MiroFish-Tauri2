@@ -7,6 +7,7 @@ Zep 的 node/edge 列表接口使用 UUID cursor 分页，
 from __future__ import annotations
 
 import time
+import threading
 from collections.abc import Callable
 from typing import Any
 
@@ -17,10 +18,25 @@ from .logger import get_logger
 
 logger = get_logger('mirofish.zep_paging')
 
+# Global lock to serialize ALL Zep API calls.
+# Zep free plan allows only 5 requests per minute.
+# Without this lock, concurrent threads create a thundering herd
+# where they all retry simultaneously and starve each other.
+_zep_api_lock = threading.Lock()
+
 _DEFAULT_PAGE_SIZE = 100
 _MAX_NODES = 2000
-_DEFAULT_MAX_RETRIES = 3
-_DEFAULT_RETRY_DELAY = 2.0  # seconds, doubles each retry
+_DEFAULT_MAX_RETRIES = 15
+_DEFAULT_RETRY_DELAY = 10.0  # seconds, doubles each retry
+
+
+def _parse_retry_after(error_str: str) -> int | None:
+    """Parse retry-after value from error string."""
+    import re
+    match = re.search(r"retry-after['\"]?\s*[:=]\s*['\"]?(\d+)", error_str, re.IGNORECASE)
+    if match:
+        return int(match.group(1)) + 5
+    return None
 
 
 def _fetch_page_with_retry(
@@ -31,7 +47,7 @@ def _fetch_page_with_retry(
     page_description: str = "page",
     **kwargs: Any,
 ) -> list[Any]:
-    """单页请求，失败时指数退避重试。仅重试网络/IO类瞬态错误。"""
+    """单页请求，失败时指数退避重试。支持429速率限制自动等待。"""
     if max_retries < 1:
         raise ValueError("max_retries must be >= 1")
 
@@ -40,17 +56,39 @@ def _fetch_page_with_retry(
 
     for attempt in range(max_retries):
         try:
-            return api_call(*args, **kwargs)
-        except (ConnectionError, TimeoutError, OSError, InternalServerError) as e:
+            # Acquire global lock before making Zep API call
+            # This prevents thundering herd - only one thread calls Zep at a time
+            with _zep_api_lock:
+                result = api_call(*args, **kwargs)
+            # Small delay between successful calls to stay under rate limit
+            time.sleep(2)
+            return result
+        except Exception as e:
             last_exception = e
-            if attempt < max_retries - 1:
-                logger.warning(
-                    f"Zep {page_description} attempt {attempt + 1} failed: {str(e)[:100]}, retrying in {delay:.1f}s..."
-                )
-                time.sleep(delay)
-                delay *= 2
+            error_str = str(e)
+            is_rate_limit = any(code in error_str.lower() for code in ('429', 'rate limit', 'rate_limit', 'quota'))
+            is_transient = isinstance(e, (ConnectionError, TimeoutError, OSError, InternalServerError))
+            
+            if is_rate_limit or is_transient:
+                if attempt < max_retries - 1:
+                    if is_rate_limit:
+                        parsed = _parse_retry_after(error_str)
+                        wait = parsed if parsed else 60
+                        logger.warning(
+                            f"Zep rate limit on {page_description} (attempt {attempt + 1}/{max_retries}). "
+                            f"Waiting {wait}s..."
+                        )
+                    else:
+                        wait = delay
+                        logger.warning(
+                            f"Zep {page_description} attempt {attempt + 1} failed: {error_str[:100]}, retrying in {wait:.1f}s..."
+                        )
+                        delay *= 2
+                    time.sleep(wait)
+                else:
+                    logger.error(f"Zep {page_description} failed after {max_retries} attempts: {error_str}")
             else:
-                logger.error(f"Zep {page_description} failed after {max_retries} attempts: {str(e)}")
+                raise  # Non-retryable error
 
     assert last_exception is not None
     raise last_exception

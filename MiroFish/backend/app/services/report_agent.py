@@ -644,7 +644,7 @@ SECTION_SYSTEM_PROMPT_TEMPLATE = """\
    - 你正在以「上帝视角」观察未来的预演
    - 所有内容必须来自模拟世界中发生的事件和Agent言行
    - 禁止使用你自己的知识来编写报告内容
-   - 每个章节至少调用3次工具（最多5次）来观察模拟的世界，它代表了未来
+   - 每个章节至少调用2次工具（最多3次）来观察模拟的世界，它代表了未来
 
 2. 【必须引用Agent的原始言行】
    - Agent的发言和行为是对未来人群行为的预测
@@ -708,7 +708,7 @@ SECTION_SYSTEM_PROMPT_TEMPLATE = """\
 
 {tools_description}
 
-【工具使用建议 - 请混合使用不同工具，不要只用一种】
+【工具使用建议 - 每章节调用2-3次，混合使用不同工具】
 - insight_forge: 深度洞察分析，自动分解问题并多维度检索事实和关系
 - panorama_search: 广角全景搜索，了解事件全貌、时间线和演变过程
 - quick_search: 快速验证某个具体信息点
@@ -873,7 +873,8 @@ class ReportAgent:
     """
     
     # 最大工具调用次数（每个章节）
-    MAX_TOOL_CALLS_PER_SECTION = 5
+    # Reduced from 5 to 3 to stay within free-tier API rate limits
+    MAX_TOOL_CALLS_PER_SECTION = 3
     
     # 最大反思轮数
     MAX_REFLECTION_ROUNDS = 3
@@ -1285,7 +1286,7 @@ class ReportAgent:
         # ReACT循环
         tool_calls_count = 0
         max_iterations = 5  # 最大迭代轮数
-        min_tool_calls = 3  # 最少工具调用次数
+        min_tool_calls = 2  # 最少工具调用次数 (reduced from 3 for free-tier APIs)
         conflict_retries = 0  # 工具调用与Final Answer同时出现的连续冲突次数
         used_tools = set()  # 记录已调用过的工具名
         all_tools = {"insight_forge", "panorama_search", "quick_search", "interview_agents"}
@@ -1305,7 +1306,7 @@ class ReportAgent:
             response = self.llm.chat(
                 messages=messages,
                 temperature=0.5,
-                max_tokens=4096
+                max_tokens=2048  # Restored for larger context model
             )
 
             # 检查 LLM 返回是否为 None（API 异常或内容为空）
@@ -1506,7 +1507,7 @@ class ReportAgent:
         response = self.llm.chat(
             messages=messages,
             temperature=0.5,
-            max_tokens=4096
+            max_tokens=2048  # Restored for larger context model
         )
 
         # 检查强制收尾时 LLM 返回是否为 None
